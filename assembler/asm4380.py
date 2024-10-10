@@ -187,6 +187,18 @@ def processData(line,lineNum):
 	#If end of file is hit in this function, is an error
 	#expecting at least 1 instruction
 
+def validateVal(val):
+	if len(val) == 0:
+		return 0
+	elif val.lower().startswith("r") and val[1:].isdigit():
+		return int(val[1:])
+	elif val.isdigit() or val[1:].isdigit():
+		return int(val)
+	elif len(val) == 1 and symbolsTable.get(val) == None:
+		return ord(val)
+	else:
+		return val
+
 def processInstruction(line, lineNum):
 	state = "Start"
 	#Only used for Special Case
@@ -222,7 +234,7 @@ def processInstruction(line, lineNum):
 				elif char == " " or char == "\t":
 					state = "Instruction Start"
 					symbolsTable[label] = lineNum
-					print(symbolsTable)
+					#print(symbolsTable)
 				else:
 					#\n, ;, anything else
 					return 1
@@ -305,7 +317,6 @@ def processInstruction(line, lineNum):
 					return 1
 			case "Operand 1":
 				if char == ",":
-					#print(operand1)
 					if value >= 8 and value <= 13:
 						state = "Immediate"
 					else:
@@ -375,53 +386,10 @@ def processInstruction(line, lineNum):
 				values = []
 				values.append(value)
 				#print(operand1,operand2,operand3,immediate)
-				if(len(operand1) == 0):
-					values.append(0)
-				else:
-					if len(operand1) == 1 and symbolsTable.get(operand1) == None:
-						values.append(ord(operand1))
-					elif operand1.lower().startswith("r") and len(operand1) >= 2 and len(operand1) <= 3:
-						values.append(int(operand1[-1]))
-					elif operand1.isdigit() or operand1[1:].isdigit():
-						values.append(int(operand1))
-					else:
-						values.append(operand1)
-
-				if(len(operand2) == 0):
-                                        values.append(0)
-				else:
-					if len(operand2) == 1 and symbolsTable.get(operand2) == None:
-                                                values.append(ord(operand2))
-					elif operand2.lower().startswith("r") and len(operand2) >= 2 and len(operand2) <= 3:
-						values.append(int(operand2[-1]))
-					elif operand2.isdigit() or operand2[1:].isdigit():
-						values.append(int(operand2))
-					else:
-                                                values.append(operand2)
-
-				if(len(operand3) == 0):
-                                        values.append(0)
-				else:
-					if len(operand3) == 1 and symbolsTable.get(operand3) == None:
-                                                values.append(ord(operand3))
-					elif operand3.lower().startswith("r") and len(operand3) >= 2 and len(operand3) <= 3:
-                                                values.append(int(operand3[-1]))
-					elif operand3.isdigit() or operand3[1:].isdigit():
-						values.append(int(operand3))
-					else:
-                                                values.append(operand3)
-
-				if(len(immediate) == 0):
-                                        values.append(0)
-				else:
-					if len(immediate) == 1 and symbolsTable.get(immediate) == None:
-                                                values.append(ord(immediate))
-					elif immediate.lower().startswith("r") and len(immediate) >= 2 and len(immediate) <= 3:
-                                                values.append(int(immediate[-1]))
-					elif immediate.isdigit() or immediate[1:].isdigit():
-						values.append(int(immediate))
-					else:
-                                                values.append(immediate)
+				values.append(validateVal(operand1))
+				values.append(validateVal(operand2))
+				values.append(validateVal(operand3))
+				values.append(validateVal(immediate))
 				values.append(0)
 				values.append(0)
 				values.append(0)
@@ -450,6 +418,12 @@ def link():
 				#print(byte_list[labelLineNum],"\n")
 			valNum += 1
 		byteNum += 1
+	#Ensuring all labels are processed, else error
+	for byte in byte_list:
+		for val in byte:
+			if type(val) == str:
+				return 1
+	return 0
 
 def output(outputFileName):
 	with open(outputFileName,"wb") as binary_file:
@@ -460,21 +434,22 @@ def output(outputFileName):
 	binary_file.close()
 
 def main():
+	#Validate argv[1] is a asm file
 	if(len(sys.argv) < 2 or sys.argv[1].endswith(".asm") != True):
 		print("USAGE: python3 asm4380.py inputFile.asm")
 		return
 	fileName = sys.argv[1]
 	f = open(fileName,'r')
+	#Retrieve all lines in file
 	lines = []
 	for line in f:
 		lines.append(line)
 	f.close()
-
 	lineNum = 1
+
 	#Start of processData
-	#Add better checks here for end of file, and at least one instruction
 	while(True):
-		if lineNum == len(lines):
+		if lineNum == len(lines) + 1:
 			#Might want better message here
 			print("Assembler error: Expecting at least 1 instruction!")
 			return 2
@@ -489,7 +464,7 @@ def main():
 
 	#Start of processInstructions
 	while(True):
-		if lineNum == len(lines):
+		if lineNum == len(lines) + 1:
 			break
 		valid = processInstruction(lines[lineNum-1],lineNum)
 		if valid > 0:
@@ -497,15 +472,18 @@ def main():
 			return 2
 
 		lineNum += 1
-	#print(byte_list,"\n")
+
 	#Replace Lables with Values
-	link()
+	valid = link()
+	if valid != 0:
+			#Will be 1 if there is a remaining "label" in the byte_list after initial run
+			print("Assembler error encoutered on line {}".format(lineNum))
+			return 2
 
 	#Process Output
 	outputFileName = fileName[:-3] + "bin"
-	#print(outputFileName)
 	output(outputFileName)
-	#print(byte_list,"\n")
+	return 0
 
 if __name__ == "__main__":
 	main()
